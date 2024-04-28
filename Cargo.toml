@@ -1,0 +1,22 @@
+[package]
+name = "keep-a-changelog"
+version = "0.1.0"
+authors = ["Semen Loktionov <loktionov.kh@gmail.com>"]
+license = "MIT"
+edition = "2021"
+
+description = "Rust library for generating and manipulating CHANGELOG.md files that use the Keep A Changelog format."
+readme = "README.md"
+documentation = "https://docs.rs/keep-a-changelog"
+
+repository = "https://github.com/napalmpapalam/keep-a-changelog-rs"
+keywords = ["keep-a-changelog", "changelog"]
+categories = ["development-tools", "text-processing"]
+
+[dependencies]
+eyre = "0.6"
+derive_builder = "0.20"
+derive-getters = "0.3"
+chrono = "0.4"
+regex = "1"
+semver = "1"

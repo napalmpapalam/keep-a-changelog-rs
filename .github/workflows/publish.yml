@@ -1,0 +1,26 @@
+name: Publish
+
+on:
+  push:
+    tags:
+      - '*'
+
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_NET_RETRY: 10
+  CI: 1
+  RUST_BACKTRACE: short
+  RUSTFLAGS: -D warnings
+  RUSTUP_MAX_RETRIES: 10
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+  publish:
+    name: Publish
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - run: cargo publish --token ${CRATES_TOKEN}
+        env:
+          CRATES_TOKEN: ${{ secrets.CRATES_TOKEN }}
