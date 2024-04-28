@@ -13,7 +13,7 @@
     <img alt="License: MIT" src="https://img.shields.io/github/license/napalmpapalam/keep-a-changelog-rs.svg" />
   </a>
   <a href="https://github.com/napalmpapalam/keep-a-changelog-rs/actions">
-    <img alt="Build Status" src="https://github.com/napalmpapalam/keep-a-changelog-rs/actions/workflows/build.yaml/badge.svg" />
+    <img alt="Build Status" src="https://github.com/napalmpapalam/keep-a-changelog-rs/actions/workflows/build.yml/badge.svg" />
   </a>
   <a href="https://crates.io/crates/keep-a-changelog">
     <img alt="Crates.io" src="https://img.shields.io/crates/v/keep-a-changelog.svg" />

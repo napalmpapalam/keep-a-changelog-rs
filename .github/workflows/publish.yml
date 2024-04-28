@@ -3,7 +3,7 @@ name: Publish
 on:
   push:
     tags:
-      - '*'
+      - '*.*.*'
 
 env:
   CARGO_INCREMENTAL: 0
@@ -14,13 +14,15 @@ env:
   RUSTUP_MAX_RETRIES: 10
 
 jobs:
-  build:
-    uses: ./.github/workflows/build.yml
   publish:
-    name: Publish
-    needs: [build]
     runs-on: ubuntu-latest
     steps:
-      - run: cargo publish --token ${CRATES_TOKEN}
+      - uses: actions/checkout@v4
+      - name: Clippy
+        run: cargo clippy --all-targets --all-features
+      - name: Build
+        run: cargo build --all-targets
+      - name: Publish
+        run: cargo publish --token ${CRATES_TOKEN}
         env:
           CRATES_TOKEN: ${{ secrets.CRATES_TOKEN }}
