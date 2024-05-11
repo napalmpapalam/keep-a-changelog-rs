@@ -1,7 +1,7 @@
 use std::{
     fmt::{self, Display},
-    fs::File,
-    io::Read,
+    fs::{File, OpenOptions},
+    io::{Read, Write},
     path::Path,
 };
 
@@ -135,6 +135,17 @@ impl Changelog {
         Parser::parse(markdown, opts)
     }
 
+    pub fn save_to_file(&self, path: &str) -> Result<()> {
+        let mut file = OpenOptions::new().write(true).create(true).open(path)?;
+        file.write_all(self.to_string().as_bytes())?;
+        file.flush()?;
+        Ok(())
+    }
+
+    pub fn releases_mut(&mut self) -> &mut Vec<Release> {
+        &mut self.releases
+    }
+
     /// Find release by version
     pub fn find_release(&self, version: String) -> Result<Option<&Release>> {
         let version = Version::parse(&version).wrap_err_with(|| {
@@ -147,11 +158,30 @@ impl Changelog {
             .find(|r| r.version() == &Some(version.clone())))
     }
 
+    /// Find release by version and return mutable reference
+    pub fn find_release_mut(&mut self, version: String) -> Result<Option<&mut Release>> {
+        let version = Version::parse(&version).wrap_err_with(|| {
+            format!("Failed to parse version: {version} during finding release")
+        })?;
+
+        Ok(self
+            .releases_mut()
+            .iter_mut()
+            .find(|r| r.version() == &Some(version.clone())))
+    }
+
     /// Get unreleased release from changelog
     /// If there is no unreleased release, it will return None
     pub fn get_unreleased(&self) -> Option<&Release> {
         self.releases()
             .iter()
+            .find(|r| r.version().is_none() && r.date().is_none())
+    }
+
+    /// Same as get_unreleased but mutable
+    pub fn get_unreleased_mut(&mut self) -> Option<&mut Release> {
+        self.releases_mut()
+            .iter_mut()
             .find(|r| r.version().is_none() && r.date().is_none())
     }
 

@@ -6,6 +6,7 @@ use std::{
 use chrono::NaiveDate;
 use derive_builder::Builder;
 use derive_getters::Getters;
+use derive_setters::Setters;
 use eyre::{Context, OptionExt, Result};
 use semver::Version;
 
@@ -15,16 +16,21 @@ use crate::{
     Changelog,
 };
 
-#[derive(Debug, Clone, Builder, Getters, PartialEq, Eq)]
+#[derive(Debug, Clone, Builder, Getters, Setters, PartialEq, Eq)]
+#[setters(prefix = "set_")]
 pub struct Release {
+    #[setters(strip_option, into, borrow_self)]
     #[builder(setter(strip_option, into), default)]
     version: Option<Version>,
     #[builder(default = "false")]
     yanked: bool,
+    #[setters(strip_option, into, borrow_self)]
     #[builder(setter(into), default)]
     description: Option<String>,
+    #[setters(strip_option, into, borrow_self)]
     #[builder(setter(strip_option, into), default)]
     date: Option<NaiveDate>,
+    #[setters(strip_option, into, borrow_self)]
     #[builder(default)]
     changes: Changes,
 }
@@ -82,6 +88,40 @@ impl Release {
         }
 
         changelog.compare_link(self, previous)
+    }
+
+    pub fn empty_changes(&mut self) -> &mut Self {
+        self.set_changes(Changes::default())
+    }
+
+    pub fn added(&mut self, change: String) -> &mut Self {
+        self.changes.add(ChangeKind::Added, change);
+        self
+    }
+
+    pub fn changed(&mut self, change: String) -> &mut Self {
+        self.changes.add(ChangeKind::Changed, change);
+        self
+    }
+
+    pub fn deprecated(&mut self, change: String) -> &mut Self {
+        self.changes.add(ChangeKind::Deprecated, change);
+        self
+    }
+
+    pub fn removed(&mut self, change: String) -> &mut Self {
+        self.changes.add(ChangeKind::Removed, change);
+        self
+    }
+
+    pub fn fixed(&mut self, change: String) -> &mut Self {
+        self.changes.add(ChangeKind::Fixed, change);
+        self
+    }
+
+    pub fn security(&mut self, change: String) -> &mut Self {
+        self.changes.add(ChangeKind::Security, change);
+        self
     }
 }
 
