@@ -5,6 +5,10 @@ on:
     tags:
       - '*.*.*'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   CARGO_INCREMENTAL: 0
   CARGO_NET_RETRY: 10
@@ -18,6 +22,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Rustfmt
+        run: cargo fmt -- --check
       - name: Clippy
         run: cargo clippy --all-targets --all-features
       - name: Build

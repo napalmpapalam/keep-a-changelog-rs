@@ -136,7 +136,11 @@ impl Changelog {
     }
 
     pub fn save_to_file(&self, path: &str) -> Result<()> {
-        let mut file = OpenOptions::new().write(true).create(true).open(path)?;
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(path)?;
         file.write_all(self.to_string().as_bytes())?;
         file.flush()?;
         Ok(())
