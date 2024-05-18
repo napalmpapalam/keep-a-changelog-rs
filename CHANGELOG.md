@@ -6,8 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2024-05-18
+### Fixed
+- Parsing anchor links in the middle of the file
+- Error readability
+
 ## [0.1.0] - 2024-04-28
 - Initial release
 
-[Unreleased]: https://github.com/napalmpapalam/keep-a-changelog/compare/0.1.0...HEAD
-[0.1.0]: https://github.com/napalmpapalam/keep-a-changelog/releases/tag/0.1.0
+
+[Unreleased]: https://github.com/napalmpapalam/keep-a-changelog-rs/compare/0.1.1...HEAD
+[0.1.1]: https://github.com/napalmpapalam/keep-a-changelog-rs/compare/0.1.0...0.1.1
+[0.1.0]: https://github.com/napalmpapalam/keep-a-changelog-rs/releases/tag/0.1.0

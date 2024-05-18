@@ -1,4 +1,4 @@
-use eyre::{bail, Context, Result};
+use eyre::{bail, eyre, Result};
 use regex::Regex;
 use semver::Version;
 
@@ -18,7 +18,9 @@ pub struct Parser {
 
 impl Parser {
     pub fn parse(markdown: String, opts: Option<ChangelogParseOptions>) -> Result<Changelog> {
-        let tokens = tokenize(markdown).wrap_err_with(|| "Failed to tokenize markdown")?;
+        let tokens = tokenize(markdown)?;
+        let (links, tokens): (Vec<Token>, Vec<Token>) =
+            tokens.into_iter().partition(|t| t.kind == TokenKind::Link);
         let builder = ChangelogBuilder::default();
         let opts = opts.unwrap_or_default();
 
@@ -31,7 +33,7 @@ impl Parser {
         .parse_opts()?
         .parse_meta()?
         .parse_releases()?
-        .parse_links()?
+        .parse_links(links)?
         .parse_footer()?
         .build()
     }
@@ -49,8 +51,8 @@ impl Parser {
     }
 
     fn parse_meta(&mut self) -> Result<&mut Self> {
-        let flag = self.get_content(vec![TokenKind::Flag], false)?;
-        let title = self.get_content(vec![TokenKind::H1], true)?;
+        let (flag, _) = self.get_content(vec![TokenKind::Flag])?;
+        let (title, _) = self.get_content(vec![TokenKind::H1])?;
         let description = self.get_text_content()?;
 
         self.builder
@@ -67,33 +69,38 @@ impl Parser {
         let release_regex =
             Regex::new(r"\[?([^\]]+)\]?\s*-\s*([\d]{4}-[\d]{1,2}-[\d]{1,2})(\s+\[yanked\])?$")?;
 
-        while let Some(release) = self.get_content(vec![TokenKind::H2], false)? {
+        while let (Some(release), token) = self.get_content(vec![TokenKind::H2])? {
             let mut builder = ReleaseBuilder::default();
-            let release = release.clone().to_lowercase();
+            let release_lc = release.clone().to_lowercase();
 
-            builder.yanked(release.contains("[yanked]"));
+            builder.yanked(release_lc.contains("[yanked]"));
 
-            if let Some(captures) = release_regex.captures(&release) {
+            if let Some(captures) = release_regex.captures(&release_lc) {
                 let version = Version::parse(captures[1].trim())
-                    .wrap_err_with(|| "Failed to parse version")?;
+                    .map_err(|e| eyre!("Failed to parse version: {e}"))?;
 
                 let date = chrono::NaiveDate::parse_from_str(captures[2].trim(), "%Y-%m-%d")
-                    .wrap_err_with(|| "Failed to parse date")?;
+                    .map_err(|e| eyre!("Failed to parse date: {e}"))?;
 
                 builder.version(version).date(date);
-            } else if release.contains("unreleased") {
-                if let Some(captures) = unreleased_regex.captures(&release) {
+            } else if release_lc.contains("unreleased") {
+                if let Some(captures) = unreleased_regex.captures(&release_lc) {
                     builder.version(Version::parse(captures[1].trim())?);
                 }
             } else {
-                bail!("Failed to parse release: {:?}", release)
+                let token = token.expect("Token is None");
+                bail!(
+                    "Failed to parse release token at line: {}, kind: {}, content: `## {release}`. Expected format: `## [VERSION] - [DATE]` or `## [Unreleased]`",
+                    token.line,
+                    token.kind
+                )
             }
 
             builder.description(self.get_text_content()?);
 
-            while let Some(change_kind) = self.get_content(vec![TokenKind::H3], false)? {
-                while let Some(change) = self.get_content(vec![TokenKind::Li], false)? {
-                    builder.add_change(change_kind.clone().to_lowercase(), change)?;
+            while let (Some(_), Some(change_kind)) = self.get_content(vec![TokenKind::H3])? {
+                while let (Some(_), Some(change)) = self.get_content(vec![TokenKind::Li])? {
+                    builder.add_change(change_kind.clone(), change.clone())?;
                 }
             }
 
@@ -105,28 +112,30 @@ impl Parser {
         Ok(self)
     }
 
-    fn parse_links(&mut self) -> Result<&mut Self> {
+    fn parse_links(&mut self, tokens: Vec<Token>) -> Result<&mut Self> {
         let release_link_regex = Regex::new(r"^\[.*\]\:\s*(http.*?)\/(?:-\/)?compare\/.*$")?;
 
-        let mut links = vec![];
+        let links = tokens
+            .into_iter()
+            .map(|t| {
+                let link = t.content.join("\n");
 
-        while let Some(link) = self.get_content(vec![TokenKind::Link], false)? {
-            links.push(link.clone());
+                if self.opts.url.is_none() {
+                    if let Some(captures) = release_link_regex.captures(&link) {
+                        self.builder.url(Some(captures[1].to_string()));
+                    }
+                }
 
-            if self.opts.url.is_some() {
-                continue;
-            }
-            if let Some(captures) = release_link_regex.captures(&link) {
-                self.builder.url(Some(captures[1].to_string()));
-            }
-        }
+                link
+            })
+            .collect::<Vec<_>>();
 
         self.builder.links(links)?;
         Ok(self)
     }
 
     fn parse_footer(&mut self) -> Result<&mut Self> {
-        let footer = self.get_content(vec![TokenKind::Hr], false)?;
+        let (footer, _) = self.get_content(vec![TokenKind::Hr])?;
         self.builder.footer(footer);
         Ok(self)
     }
@@ -143,30 +152,24 @@ impl Parser {
 
         self.builder
             .build()
-            .wrap_err_with(|| "Failed to build Changelog")
+            .map_err(|e| eyre!("Failed to build Changelog: {e}"))
     }
 
-    fn get_content(&mut self, kinds: Vec<TokenKind>, required: bool) -> Result<Option<String>> {
+    fn get_content(&mut self, kinds: Vec<TokenKind>) -> Result<(Option<String>, Option<Token>)> {
         let token = self.tokens.get(self.idx);
 
         if token.is_none() {
-            if required {
-                bail!("Required token missing in line: {}", self.idx);
-            }
-            return Ok(None);
+            return Ok((None, None));
         }
 
-        let token = token.unwrap();
+        let token = token.unwrap().clone();
 
         if !kinds.iter().any(|k| *k == token.kind) {
-            if required {
-                bail!("Required token kind missing in line: {}", self.idx);
-            }
-            return Ok(None);
+            return Ok((None, Some(token)));
         }
 
         self.idx += 1;
-        Ok(Some(token.content.join("\n")))
+        Ok((Some(token.content.join("\n")), Some(token)))
     }
 
     fn get_text_content(&mut self) -> Result<Option<String>> {

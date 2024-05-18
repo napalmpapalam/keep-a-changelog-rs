@@ -74,6 +74,15 @@ impl Changes {
             ChangeKind::Security => self.security.push(change),
         }
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.added.is_empty()
+            && self.changed.is_empty()
+            && self.deprecated.is_empty()
+            && self.removed.is_empty()
+            && self.fixed.is_empty()
+            && self.security.is_empty()
+    }
 }
 
 impl Display for Changes {

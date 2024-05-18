@@ -6,35 +6,48 @@ use std::{
 use chrono::NaiveDate;
 use derive_builder::Builder;
 use derive_getters::Getters;
-use eyre::{Context, OptionExt, Result};
+use derive_setters::Setters;
+use eyre::{eyre, OptionExt, Result};
 use semver::Version;
 
 use crate::{
     changes::{ChangeKind, Changes},
     link::Link,
+    token::Token,
     Changelog,
 };
 
-#[derive(Debug, Clone, Builder, Getters, PartialEq, Eq)]
+#[derive(Debug, Clone, Builder, Getters, Setters, PartialEq, Eq)]
+#[setters(prefix = "set_")]
 pub struct Release {
+    #[setters(strip_option, into, borrow_self)]
     #[builder(setter(strip_option, into), default)]
     version: Option<Version>,
     #[builder(default = "false")]
     yanked: bool,
+    #[setters(strip_option, into, borrow_self)]
     #[builder(setter(into), default)]
     description: Option<String>,
+    #[setters(strip_option, into, borrow_self)]
     #[builder(setter(strip_option, into), default)]
     date: Option<NaiveDate>,
+    #[setters(strip_option, into, borrow_self)]
     #[builder(default)]
     changes: Changes,
 }
 
 impl ReleaseBuilder {
-    pub fn add_change(&mut self, kind: String, change: String) -> Result<&mut Self> {
+    pub fn add_change(&mut self, kind_token: Token, change_token: Token) -> Result<&mut Self> {
         let mut changes = self.changes.clone().unwrap_or_default();
-        let kind = ChangeKind::from_str(kind.as_str())
-            .wrap_err_with(|| format!("Failed to parse change kind: {kind}"))?;
-        changes.add(kind, change);
+        let kind = kind_token.content.join("\n").to_lowercase();
+        let kind = ChangeKind::from_str(&kind).map_err(|e| {
+            eyre!(
+                "Failed to parse change kind at line: {}, content: `{kind}`, error: \"{e}\"",
+                kind_token.line,
+            )
+        })?;
+
+        changes.add(kind, change_token.content.join("\n"));
         self.changes = Some(changes);
         Ok(self)
     }
@@ -82,6 +95,40 @@ impl Release {
         }
 
         changelog.compare_link(self, previous)
+    }
+
+    pub fn empty_changes(&mut self) -> &mut Self {
+        self.set_changes(Changes::default())
+    }
+
+    pub fn added(&mut self, change: String) -> &mut Self {
+        self.changes.add(ChangeKind::Added, change);
+        self
+    }
+
+    pub fn changed(&mut self, change: String) -> &mut Self {
+        self.changes.add(ChangeKind::Changed, change);
+        self
+    }
+
+    pub fn deprecated(&mut self, change: String) -> &mut Self {
+        self.changes.add(ChangeKind::Deprecated, change);
+        self
+    }
+
+    pub fn removed(&mut self, change: String) -> &mut Self {
+        self.changes.add(ChangeKind::Removed, change);
+        self
+    }
+
+    pub fn fixed(&mut self, change: String) -> &mut Self {
+        self.changes.add(ChangeKind::Fixed, change);
+        self
+    }
+
+    pub fn security(&mut self, change: String) -> &mut Self {
+        self.changes.add(ChangeKind::Security, change);
+        self
     }
 }
 
