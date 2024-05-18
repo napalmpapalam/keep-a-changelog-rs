@@ -7,12 +7,13 @@ use chrono::NaiveDate;
 use derive_builder::Builder;
 use derive_getters::Getters;
 use derive_setters::Setters;
-use eyre::{Context, OptionExt, Result};
+use eyre::{eyre, OptionExt, Result};
 use semver::Version;
 
 use crate::{
     changes::{ChangeKind, Changes},
     link::Link,
+    token::Token,
     Changelog,
 };
 
@@ -36,11 +37,17 @@ pub struct Release {
 }
 
 impl ReleaseBuilder {
-    pub fn add_change(&mut self, kind: String, change: String) -> Result<&mut Self> {
+    pub fn add_change(&mut self, kind_token: Token, change_token: Token) -> Result<&mut Self> {
         let mut changes = self.changes.clone().unwrap_or_default();
-        let kind = ChangeKind::from_str(kind.as_str())
-            .wrap_err_with(|| format!("Failed to parse change kind: {kind}"))?;
-        changes.add(kind, change);
+        let kind = kind_token.content.join("\n").to_lowercase();
+        let kind = ChangeKind::from_str(&kind).map_err(|e| {
+            eyre!(
+                "Failed to parse change kind at line: {}, content: `{kind}`, error: \"{e}\"",
+                kind_token.line,
+            )
+        })?;
+
+        changes.add(kind, change_token.content.join("\n"));
         self.changes = Some(changes);
         Ok(self)
     }

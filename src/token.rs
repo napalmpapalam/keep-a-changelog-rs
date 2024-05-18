@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use eyre::Result;
 use regex::Regex;
 
@@ -16,6 +18,23 @@ pub enum TokenKind {
     Link,
     Flag,
     Hr,
+}
+
+impl Display for TokenKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let kind = match self {
+            TokenKind::H1 => "Heading 1",
+            TokenKind::H2 => "Heading 2",
+            TokenKind::H3 => "Heading 3",
+            TokenKind::Li => "List Item",
+            TokenKind::P => "Paragraph",
+            TokenKind::Link => "Link",
+            TokenKind::Flag => "Flag",
+            TokenKind::Hr => "Horizontal Rule",
+        };
+
+        write!(f, "{}", kind)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
