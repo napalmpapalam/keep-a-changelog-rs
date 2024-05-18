@@ -1,5 +1,5 @@
 name: Build and Lint
-on: [push, pull_request]
+on: [push]
 
 # Make sure CI fails on all warnings, including Clippy lints
 env:
