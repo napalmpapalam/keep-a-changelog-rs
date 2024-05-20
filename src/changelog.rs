@@ -24,13 +24,13 @@ pub struct Changelog {
     #[builder(setter(into), default)]
     flag: Option<String>,
     /// Changelog title, default is "Changelog"
-    #[builder(setter(into))]
+    #[builder(setter(into), default)]
     title: Option<String>,
-    #[builder(setter(into))]
     /// Changelog description, default is "
     /// All notable changes to this project will be documented in this file.
     /// The format is based on [Keep a Changelog](https://keepachangelog.com/)
     /// and this project adheres to [Semantic Versioning](https://semver.org/)."
+    #[builder(setter(into), default)]
     description: Option<String>,
     /// Git HEAD reference, default is "HEAD", used for compare links, could be a branch name or a tag
     #[builder(default = "self.default_head()")]
