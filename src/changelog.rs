@@ -361,3 +361,29 @@ impl Display for Changelog {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_save_to_file() -> Result<()> {
+        let changelog = Changelog::parse_from_file("tests/data/basic_changelog.md", None)?;
+        let path = "tests/tmp/test_save_to_file.md";
+        changelog.save_to_file(path)?;
+        let mut file = File::open(path)?;
+        let mut content = String::new();
+        file.read_to_string(&mut content)?;
+
+        assert_eq!(content, changelog.to_string());
+
+        let expected_file_len = File::open("tests/data/basic_changelog.md")?
+            .metadata()?
+            .len();
+        let actual_file_len = File::open(path)?.metadata()?.len();
+
+        assert_eq!(expected_file_len, actual_file_len);
+
+        Ok(())
+    }
+}
