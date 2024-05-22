@@ -20,6 +20,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Builder, Getters)]
+#[builder(derive(Debug))]
 pub struct Changelog {
     #[builder(setter(into), default)]
     flag: Option<String>,
@@ -307,7 +308,9 @@ impl Display for Changelog {
         }
 
         let title = self.title.clone().unwrap_or_else(|| CHANGELOG_TITLE.into());
-        writeln!(f, "# {title}",)?;
+        writeln!(f, "# {title}\n",)?;
+
+        log::debug!("Default changelog description: {:?}", CHANGELOG_DESCRIPTION);
 
         let description = match self.description.clone() {
             Some(description) => description.trim().to_owned(),
@@ -320,7 +323,7 @@ impl Display for Changelog {
             .iter()
             .try_for_each(|release| write!(f, "\n{release}"))?;
 
-        writeln!(f)?;
+        // writeln!(f)?;
 
         let tag_regex = Regex::new(r"\d+\.\d+\.\d+((-rc|-x)\.\d+)?").unwrap();
 
@@ -356,7 +359,7 @@ impl Display for Changelog {
             write!(f, "---\n{footer}\n")?;
         }
 
-        writeln!(f)?;
+        // writeln!(f)?;
 
         Ok(())
     }
@@ -364,23 +367,114 @@ impl Display for Changelog {
 
 #[cfg(test)]
 mod test {
+    use std::fs;
+
+    use log::LevelFilter;
+    use log4rs_test_utils::test_logging;
+    use rstest::rstest;
+
     use super::*;
 
     #[test]
-    fn test_save_to_file() -> Result<()> {
-        let changelog = Changelog::parse_from_file("tests/data/basic_changelog.md", None)?;
-        let path = "tests/tmp/test_save_to_file.md";
-        changelog.save_to_file(path)?;
-        let mut file = File::open(path)?;
+    fn create_default_changelog() -> Result<()> {
+        test_logging::init_logging_once_for(vec![], LevelFilter::Debug, None);
+
+        let file_name = "tests/tmp/test_default.md";
+
+        let changelog = ChangelogBuilder::default().build()?;
+
+        log::debug!("Changelog: {:#?}", changelog);
+
+        changelog.save_to_file(file_name)?;
+
+        let expected_output = fs::read_to_string("tests/data/default_changelog.md")?;
+        let actual_output = fs::read_to_string(file_name)?;
+
+        assert_eq!(expected_output, actual_output);
+
+        Ok(())
+    }
+
+    #[test]
+    fn create_default_changelog_with_unreleased() -> Result<()> {
+        test_logging::init_logging_once_for(vec![], LevelFilter::Debug, None);
+
+        let file_name = "tests/tmp/test_default_with_unreleased.md";
+
+        let mut changelog = ChangelogBuilder::default().build()?;
+        let release = Release::builder().build()?;
+
+        changelog.add_release(release);
+
+        log::debug!("Changelog: {:#?}", changelog);
+
+        changelog.save_to_file(file_name)?;
+
+        let expected_output =
+            fs::read_to_string("tests/data/default_changelog_with_unreleased.md")?;
+        let actual_output = fs::read_to_string(file_name)?;
+
+        assert_eq!(expected_output, actual_output);
+
+        Ok(())
+    }
+
+    #[test]
+    fn create_initial_changelog_unreleased() -> Result<()> {
+        test_logging::init_logging_once_for(vec![], LevelFilter::Debug, None);
+
+        let file_name = "tests/tmp/test_initial_unreleased.md";
+
+        let mut changelog = ChangelogBuilder::default().build()?;
+        let mut release = Release::builder().build()?;
+
+        release.added("Initial commit".to_string());
+
+        changelog.add_release(release);
+
+        log::debug!("Changelog: {:#?}", changelog);
+
+        changelog.save_to_file(file_name)?;
+
+        let expected_output = fs::read_to_string("tests/data/initial_changelog_unreleased.md")?;
+        let actual_output = fs::read_to_string(file_name)?;
+
+        assert_eq!(expected_output, actual_output);
+
+        Ok(())
+    }
+
+    #[rstest]
+    #[case(
+        "tests/data/default_changelog.md",
+        "tests/tmp/test_rewrite_default_changelog.md"
+    )]
+    #[case(
+        "tests/data/default_changelog_with_unreleased.md",
+        "tests/tmp/test_rewrite_default_changelog_with_unreleased.md"
+    )]
+    #[case(
+        "tests/data/initial_changelog.md",
+        "tests/tmp/test_initial_changelog.md"
+    )]
+    #[case("tests/data/basic_changelog.md", "tests/tmp/test_basic_changelog.md")]
+    fn test_save_to_file(
+        #[case] test_input_file: &str,
+        #[case] test_output_file: &str,
+    ) -> Result<()> {
+        test_logging::init_logging_once_for(vec![], LevelFilter::Debug, None);
+
+        let changelog = Changelog::parse_from_file(test_input_file, None)?;
+
+        changelog.save_to_file(test_output_file)?;
+        let mut file = File::open(test_output_file)?;
         let mut content = String::new();
         file.read_to_string(&mut content)?;
 
         assert_eq!(content, changelog.to_string());
 
-        let expected_file_len = File::open("tests/data/basic_changelog.md")?
-            .metadata()?
-            .len();
-        let actual_file_len = File::open(path)?.metadata()?.len();
+        let expected_file_len = File::open(test_input_file)?.metadata()?.len();
+        let actual_file_len = File::open(test_output_file)?.metadata()?.len();
 
         assert_eq!(expected_file_len, actual_file_len);
 
