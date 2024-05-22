@@ -142,9 +142,24 @@ impl Changelog {
             .create(true)
             .truncate(true)
             .open(path)?;
-        file.write_all(self.to_string().as_bytes())?;
+        file.write_all(self.file_contents().as_bytes())?;
         file.flush()?;
         Ok(())
+    }
+
+    /// Format the changelog as a string for output as a valid Marddown file
+    ///
+    /// To ensure compliance with the requirements of the Markdown standard any blank
+    /// line at the end of the string needs to be removed.
+    ///
+    fn file_contents(&self) -> String {
+        if self.to_string().ends_with("\n\n") {
+            let mut s = self.to_string().trim_end_matches('\n').to_string();
+            s.push('\n');
+            s
+        } else {
+            self.to_string()
+        }
     }
 
     pub fn releases_mut(&mut self) -> &mut Vec<Release> {
@@ -310,8 +325,6 @@ impl Display for Changelog {
         let title = self.title.clone().unwrap_or_else(|| CHANGELOG_TITLE.into());
         writeln!(f, "# {title}\n",)?;
 
-        log::debug!("Default changelog description: {:?}", CHANGELOG_DESCRIPTION);
-
         let description = match self.description.clone() {
             Some(description) => description.trim().to_owned(),
             None => CHANGELOG_DESCRIPTION.into(),
@@ -322,8 +335,6 @@ impl Display for Changelog {
         self.releases()
             .iter()
             .try_for_each(|release| write!(f, "{release}"))?;
-
-        // writeln!(f)?;
 
         let tag_regex = Regex::new(r"\d+\.\d+\.\d+((-rc|-x)\.\d+)?").unwrap();
 
@@ -355,13 +366,9 @@ impl Display for Changelog {
             })
             .try_for_each(|link| writeln!(f, "{link}"))?;
 
-        // writeln!(f)?;
-
         if let Some(footer) = self.footer.clone() {
             write!(f, "---\n{footer}\n")?;
         }
-
-        // writeln!(f)?;
 
         Ok(())
     }
@@ -527,9 +534,12 @@ mod test {
     )]
     #[case(
         "tests/data/initial_changelog_unreleased.md",
-        "tests/tmp/test_initial_changelog_unreleased.md"
+        "tests/tmp/test_rewrite_initial_changelog_unreleased.md"
     )]
-    #[case("tests/data/basic_changelog.md", "tests/tmp/test_basic_changelog.md")]
+    #[case(
+        "tests/data/early_changelog.md",
+        "tests/tmp/test_rewrite_early_changelog.md"
+    )]
     fn test_save_to_file(
         #[case] test_input_file: &str,
         #[case] test_output_file: &str,
