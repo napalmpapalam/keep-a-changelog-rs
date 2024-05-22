@@ -164,7 +164,9 @@ impl Display for Release {
             writeln!(f, "{description}")?;
         }
 
-        write!(f, "{}", self.changes)?;
+        if !self.changes.is_empty() {
+            write!(f, "{}", self.changes)?;
+        }
 
         Ok(())
     }

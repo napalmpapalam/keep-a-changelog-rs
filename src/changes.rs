@@ -93,36 +93,42 @@ impl Display for Changes {
             ensure_newline(f, &mut first_printed)?;
             writeln!(f, "### Added\n")?;
             print_changes(f, &self.added)?;
+            writeln!(f)?;
         }
 
         if !self.changed.is_empty() {
             ensure_newline(f, &mut first_printed)?;
-            writeln!(f, "### Changed")?;
+            writeln!(f, "### Changed\n")?;
             print_changes(f, &self.changed)?;
+            writeln!(f)?;
         }
 
         if !self.deprecated.is_empty() {
             ensure_newline(f, &mut first_printed)?;
-            writeln!(f, "### Deprecated")?;
+            writeln!(f, "### Deprecated\n")?;
             print_changes(f, &self.deprecated)?;
+            writeln!(f)?;
         }
 
         if !self.removed.is_empty() {
             ensure_newline(f, &mut first_printed)?;
-            writeln!(f, "### Removed")?;
+            writeln!(f, "### Removed\n")?;
             print_changes(f, &self.removed)?;
+            writeln!(f)?;
         }
 
         if !self.fixed.is_empty() {
             ensure_newline(f, &mut first_printed)?;
-            writeln!(f, "### Fixed")?;
+            writeln!(f, "### Fixed\n")?;
             print_changes(f, &self.fixed)?;
+            writeln!(f)?;
         }
 
         if !self.security.is_empty() {
             ensure_newline(f, &mut first_printed)?;
-            writeln!(f, "### Security")?;
+            writeln!(f, "### Security\n")?;
             print_changes(f, &self.security)?;
+            writeln!(f)?;
         }
 
         Ok(())

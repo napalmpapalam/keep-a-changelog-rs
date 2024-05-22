@@ -317,11 +317,11 @@ impl Display for Changelog {
             None => CHANGELOG_DESCRIPTION.into(),
         };
 
-        writeln!(f, "{description}")?;
+        writeln!(f, "{description}\n")?;
 
         self.releases()
             .iter()
-            .try_for_each(|release| write!(f, "\n{release}"))?;
+            .try_for_each(|release| write!(f, "{release}"))?;
 
         // writeln!(f)?;
 
@@ -353,7 +353,9 @@ impl Display for Changelog {
                     .compare_link(self)
                     .expect("Failed to get compare link")
             })
-            .try_for_each(|link| write!(f, "\n{link}"))?;
+            .try_for_each(|link| write!(f, "{link}\n"))?;
+
+        // writeln!(f)?;
 
         if let Some(footer) = self.footer.clone() {
             write!(f, "---\n{footer}\n")?;
@@ -369,6 +371,7 @@ impl Display for Changelog {
 mod test {
     use std::fs;
 
+    use chrono::NaiveDate;
     use log::LevelFilter;
     use log4rs_test_utils::test_logging;
     use rstest::rstest;
@@ -444,6 +447,75 @@ mod test {
         Ok(())
     }
 
+    #[test]
+    fn create_early_changelog() -> Result<()> {
+        test_logging::init_logging_once_for(vec![], LevelFilter::Debug, None);
+
+        let file_name = "tests/tmp/test_early.md";
+
+        let mut changelog = ChangelogBuilder::default()
+            .url(Some(
+                "https://github.com/napalmpapalam/keep-a-changelog-rs".to_string(),
+            ))
+            .build()?;
+
+        // First Release
+
+        let mut release = Release::builder()
+            .version(Version::parse("0.1.0")?)
+            .date(NaiveDate::from_ymd_opt(2024, 4, 28).unwrap())
+            .build()?;
+
+        release.added("Initial release".to_string());
+
+        changelog.add_release(release);
+
+        // Second Release
+
+        let mut release = Release::builder()
+            .version(Version::parse("0.1.1")?)
+            .date(NaiveDate::from_ymd_opt(2024, 5, 18).unwrap())
+            .build()?;
+
+        release.fixed("Parsing anchor links in the middle of the file".to_string());
+        release.fixed("Error readability".to_string());
+
+        changelog.add_release(release);
+
+        // Third Release
+
+        let mut release = Release::builder()
+            .version(Version::parse("0.1.2")?)
+            .date(NaiveDate::from_ymd_opt(2024, 5, 20).unwrap())
+            .build()?;
+
+        release.fixed("Default changelog description".to_string());
+        release.fixed(
+            "Changelog builder error when title and description are not provided".to_string(),
+        );
+
+        changelog.add_release(release);
+
+        // Unreleased
+
+        let release = Release::builder().build()?;
+
+        changelog.add_release(release);
+
+        // Ready to save
+
+        log::debug!("Changelog: {:#?}", changelog);
+
+        changelog.save_to_file(file_name)?;
+
+        let expected_output = fs::read_to_string("tests/data/early_changelog.md")?;
+        let actual_output = fs::read_to_string(file_name)?;
+
+        assert_eq!(expected_output, actual_output);
+
+        Ok(())
+    }
+
     #[rstest]
     #[case(
         "tests/data/default_changelog.md",
@@ -454,8 +526,8 @@ mod test {
         "tests/tmp/test_rewrite_default_changelog_with_unreleased.md"
     )]
     #[case(
-        "tests/data/initial_changelog.md",
-        "tests/tmp/test_initial_changelog.md"
+        "tests/data/initial_changelog_unreleased.md",
+        "tests/tmp/test_initial_changelog_unreleased.md"
     )]
     #[case("tests/data/basic_changelog.md", "tests/tmp/test_basic_changelog.md")]
     fn test_save_to_file(
