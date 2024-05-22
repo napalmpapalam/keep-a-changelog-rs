@@ -353,7 +353,7 @@ impl Display for Changelog {
                     .compare_link(self)
                     .expect("Failed to get compare link")
             })
-            .try_for_each(|link| write!(f, "{link}\n"))?;
+            .try_for_each(|link| writeln!(f, "{link}"))?;
 
         // writeln!(f)?;
 
