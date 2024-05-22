@@ -385,6 +385,30 @@ mod test {
 
     use super::*;
 
+    fn are_the_same(file_a: &str, file_b: &str) -> Result<bool> {
+        let file_a_contents = fs::read_to_string(file_a)?;
+        let file_b_contents = fs::read_to_string(file_b)?;
+
+        if file_a_contents.len() != file_b_contents.len() {
+            return Ok(false);
+        }
+
+        let a_lines: Vec<_> = file_a_contents.lines().collect();
+        let b_lines: Vec<_> = file_b_contents.lines().collect();
+
+        if a_lines.len() != b_lines.len() {
+            return Ok(false);
+        }
+
+        for (a, b) in a_lines.iter().zip(b_lines.iter()) {
+            if a != b {
+                return Ok(false);
+            }
+        }
+
+        Ok(true)
+    }
+
     #[test]
     fn create_default_changelog() -> Result<()> {
         test_logging::init_logging_once_for(vec![], LevelFilter::Debug, None);
@@ -397,10 +421,7 @@ mod test {
 
         changelog.save_to_file(file_name)?;
 
-        let expected_output = fs::read_to_string("tests/data/default_changelog.md")?;
-        let actual_output = fs::read_to_string(file_name)?;
-
-        assert_eq!(expected_output, actual_output);
+        assert!(are_the_same("tests/data/default_changelog.md", file_name)?);
 
         Ok(())
     }
@@ -420,11 +441,10 @@ mod test {
 
         changelog.save_to_file(file_name)?;
 
-        let expected_output =
-            fs::read_to_string("tests/data/default_changelog_with_unreleased.md")?;
-        let actual_output = fs::read_to_string(file_name)?;
-
-        assert_eq!(expected_output, actual_output);
+        assert!(are_the_same(
+            "tests/data/default_changelog_with_unreleased.md",
+            file_name
+        )?);
 
         Ok(())
     }
@@ -446,10 +466,10 @@ mod test {
 
         changelog.save_to_file(file_name)?;
 
-        let expected_output = fs::read_to_string("tests/data/initial_changelog_unreleased.md")?;
-        let actual_output = fs::read_to_string(file_name)?;
-
-        assert_eq!(expected_output, actual_output);
+        assert!(are_the_same(
+            "tests/data/initial_changelog_unreleased.md",
+            file_name
+        )?);
 
         Ok(())
     }
@@ -515,10 +535,7 @@ mod test {
 
         changelog.save_to_file(file_name)?;
 
-        let expected_output = fs::read_to_string("tests/data/early_changelog.md")?;
-        let actual_output = fs::read_to_string(file_name)?;
-
-        assert_eq!(expected_output, actual_output);
+        assert!(are_the_same("tests/data/early_changelog.md", file_name)?);
 
         Ok(())
     }
@@ -553,12 +570,7 @@ mod test {
         let mut content = String::new();
         file.read_to_string(&mut content)?;
 
-        assert_eq!(content, changelog.file_contents());
-
-        let expected_file_len = File::open(test_input_file)?.metadata()?.len();
-        let actual_file_len = File::open(test_output_file)?.metadata()?.len();
-
-        assert_eq!(expected_file_len, actual_file_len);
+        assert!(are_the_same(test_input_file, test_output_file)?);
 
         Ok(())
     }
