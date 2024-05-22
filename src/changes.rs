@@ -91,7 +91,7 @@ impl Display for Changes {
 
         if !self.added.is_empty() {
             ensure_newline(f, &mut first_printed)?;
-            writeln!(f, "### Added")?;
+            writeln!(f, "### Added\n")?;
             print_changes(f, &self.added)?;
         }
 
