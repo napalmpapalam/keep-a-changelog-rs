@@ -553,7 +553,7 @@ mod test {
         let mut content = String::new();
         file.read_to_string(&mut content)?;
 
-        assert_eq!(content, changelog.to_string());
+        assert_eq!(content, changelog.file_contents());
 
         let expected_file_len = File::open(test_input_file)?.metadata()?.len();
         let actual_file_len = File::open(test_output_file)?.metadata()?.len();
