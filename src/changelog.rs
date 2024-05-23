@@ -147,19 +147,19 @@ impl Changelog {
         Ok(())
     }
 
-    /// Format the changelog as a string for output as a valid Marddown file
+    /// Format the changelog as a string for output as a valid Markdown file
     ///
     /// To ensure compliance with the requirements of the Markdown standard any blank
     /// line at the end of the string needs to be removed.
     ///
     fn file_contents(&self) -> String {
-        if self.to_string().ends_with("\n\n") {
-            let mut s = self.to_string().trim_end_matches('\n').to_string();
-            s.push('\n');
-            s
-        } else {
-            self.to_string()
+        if !self.to_string().ends_with("\n\n") {
+            return self.to_string();
         }
+
+        let mut s = self.to_string().trim_end_matches('\n').to_string();
+        s.push('\n');
+        s
     }
 
     pub fn releases_mut(&mut self) -> &mut Vec<Release> {
