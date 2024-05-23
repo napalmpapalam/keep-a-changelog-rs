@@ -155,16 +155,18 @@ impl Display for Release {
                 .map_err(|_| std::fmt::Error)?
                 .format("%Y-%m-%d")
                 .to_string();
-            writeln!(f, "## [{version}] - {date}{yanked}")?;
+            writeln!(f, "## [{version}] - {date}{yanked}\n")?;
         } else {
-            writeln!(f, "## [Unreleased]{yanked}")?;
+            writeln!(f, "## [Unreleased]\n")?;
         }
 
         if let Some(description) = &self.description {
             writeln!(f, "{description}")?;
         }
 
-        write!(f, "{}", self.changes)?;
+        if !self.changes.is_empty() {
+            write!(f, "{}", self.changes)?;
+        }
 
         Ok(())
     }

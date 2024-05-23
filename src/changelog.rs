@@ -20,6 +20,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Builder, Getters)]
+#[builder(derive(Debug))]
 pub struct Changelog {
     #[builder(setter(into), default)]
     flag: Option<String>,
@@ -141,9 +142,24 @@ impl Changelog {
             .create(true)
             .truncate(true)
             .open(path)?;
-        file.write_all(self.to_string().as_bytes())?;
+        file.write_all(self.file_contents().as_bytes())?;
         file.flush()?;
         Ok(())
+    }
+
+    /// Format the changelog as a string for output as a valid Marddown file
+    ///
+    /// To ensure compliance with the requirements of the Markdown standard any blank
+    /// line at the end of the string needs to be removed.
+    ///
+    fn file_contents(&self) -> String {
+        if self.to_string().ends_with("\n\n") {
+            let mut s = self.to_string().trim_end_matches('\n').to_string();
+            s.push('\n');
+            s
+        } else {
+            self.to_string()
+        }
     }
 
     pub fn releases_mut(&mut self) -> &mut Vec<Release> {
@@ -307,20 +323,18 @@ impl Display for Changelog {
         }
 
         let title = self.title.clone().unwrap_or_else(|| CHANGELOG_TITLE.into());
-        writeln!(f, "# {title}",)?;
+        writeln!(f, "# {title}\n",)?;
 
         let description = match self.description.clone() {
             Some(description) => description.trim().to_owned(),
             None => CHANGELOG_DESCRIPTION.into(),
         };
 
-        writeln!(f, "{description}")?;
+        writeln!(f, "{description}\n")?;
 
         self.releases()
             .iter()
-            .try_for_each(|release| write!(f, "\n{release}"))?;
-
-        writeln!(f)?;
+            .try_for_each(|release| write!(f, "{release}"))?;
 
         let tag_regex = Regex::new(r"\d+\.\d+\.\d+((-rc|-x)\.\d+)?").unwrap();
 
@@ -350,13 +364,213 @@ impl Display for Changelog {
                     .compare_link(self)
                     .expect("Failed to get compare link")
             })
-            .try_for_each(|link| write!(f, "\n{link}"))?;
+            .try_for_each(|link| writeln!(f, "{link}"))?;
 
         if let Some(footer) = self.footer.clone() {
             write!(f, "---\n{footer}\n")?;
         }
 
-        writeln!(f)?;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::fs;
+
+    use chrono::NaiveDate;
+    use log::LevelFilter;
+    use log4rs_test_utils::test_logging;
+    use rstest::rstest;
+
+    use super::*;
+
+    fn are_the_same(file_a: &str, file_b: &str) -> Result<bool> {
+        let file_a_contents = fs::read_to_string(file_a)?;
+        let file_b_contents = fs::read_to_string(file_b)?;
+
+        if file_a_contents.len() != file_b_contents.len() {
+            return Ok(false);
+        }
+
+        let a_lines: Vec<_> = file_a_contents.lines().collect();
+        let b_lines: Vec<_> = file_b_contents.lines().collect();
+
+        if a_lines.len() != b_lines.len() {
+            return Ok(false);
+        }
+
+        for (a, b) in a_lines.iter().zip(b_lines.iter()) {
+            if a != b {
+                return Ok(false);
+            }
+        }
+
+        Ok(true)
+    }
+
+    #[test]
+    fn create_default_changelog() -> Result<()> {
+        test_logging::init_logging_once_for(vec![], LevelFilter::Debug, None);
+
+        let file_name = "tests/tmp/test_default.md";
+
+        let changelog = ChangelogBuilder::default().build()?;
+
+        log::debug!("Changelog: {:#?}", changelog);
+
+        changelog.save_to_file(file_name)?;
+
+        assert!(are_the_same("tests/data/default_changelog.md", file_name)?);
+
+        Ok(())
+    }
+
+    #[test]
+    fn create_default_changelog_with_unreleased() -> Result<()> {
+        test_logging::init_logging_once_for(vec![], LevelFilter::Debug, None);
+
+        let file_name = "tests/tmp/test_default_with_unreleased.md";
+
+        let mut changelog = ChangelogBuilder::default().build()?;
+        let release = Release::builder().build()?;
+
+        changelog.add_release(release);
+
+        log::debug!("Changelog: {:#?}", changelog);
+
+        changelog.save_to_file(file_name)?;
+
+        assert!(are_the_same(
+            "tests/data/default_changelog_with_unreleased.md",
+            file_name
+        )?);
+
+        Ok(())
+    }
+
+    #[test]
+    fn create_initial_changelog_unreleased() -> Result<()> {
+        test_logging::init_logging_once_for(vec![], LevelFilter::Debug, None);
+
+        let file_name = "tests/tmp/test_initial_unreleased.md";
+
+        let mut changelog = ChangelogBuilder::default().build()?;
+        let mut release = Release::builder().build()?;
+
+        release.added("Initial commit".to_string());
+
+        changelog.add_release(release);
+
+        log::debug!("Changelog: {:#?}", changelog);
+
+        changelog.save_to_file(file_name)?;
+
+        assert!(are_the_same(
+            "tests/data/initial_changelog_unreleased.md",
+            file_name
+        )?);
+
+        Ok(())
+    }
+
+    #[test]
+    fn create_early_changelog() -> Result<()> {
+        test_logging::init_logging_once_for(vec![], LevelFilter::Debug, None);
+
+        let file_name = "tests/tmp/test_early.md";
+
+        let mut changelog = ChangelogBuilder::default()
+            .url(Some(
+                "https://github.com/napalmpapalam/keep-a-changelog-rs".to_string(),
+            ))
+            .build()?;
+
+        // First Release
+
+        let mut release = Release::builder()
+            .version(Version::parse("0.1.0")?)
+            .date(NaiveDate::from_ymd_opt(2024, 4, 28).unwrap())
+            .build()?;
+
+        release.added("Initial release".to_string());
+
+        changelog.add_release(release);
+
+        // Second Release
+
+        let mut release = Release::builder()
+            .version(Version::parse("0.1.1")?)
+            .date(NaiveDate::from_ymd_opt(2024, 5, 18).unwrap())
+            .build()?;
+
+        release.fixed("Parsing anchor links in the middle of the file".to_string());
+        release.fixed("Error readability".to_string());
+
+        changelog.add_release(release);
+
+        // Third Release
+
+        let mut release = Release::builder()
+            .version(Version::parse("0.1.2")?)
+            .date(NaiveDate::from_ymd_opt(2024, 5, 20).unwrap())
+            .build()?;
+
+        release.fixed("Default changelog description".to_string());
+        release.fixed(
+            "Changelog builder error when title and description are not provided".to_string(),
+        );
+
+        changelog.add_release(release);
+
+        // Unreleased
+
+        let release = Release::builder().build()?;
+
+        changelog.add_release(release);
+
+        // Ready to save
+
+        log::debug!("Changelog: {:#?}", changelog);
+
+        changelog.save_to_file(file_name)?;
+
+        assert!(are_the_same("tests/data/early_changelog.md", file_name)?);
+
+        Ok(())
+    }
+
+    #[rstest]
+    #[case(
+        "tests/data/default_changelog.md",
+        "tests/tmp/test_rewrite_default_changelog.md"
+    )]
+    #[case(
+        "tests/data/default_changelog_with_unreleased.md",
+        "tests/tmp/test_rewrite_default_changelog_with_unreleased.md"
+    )]
+    #[case(
+        "tests/data/initial_changelog_unreleased.md",
+        "tests/tmp/test_rewrite_initial_changelog_unreleased.md"
+    )]
+    #[case(
+        "tests/data/early_changelog.md",
+        "tests/tmp/test_rewrite_early_changelog.md"
+    )]
+    fn test_save_to_file(
+        #[case] test_input_file: &str,
+        #[case] test_output_file: &str,
+    ) -> Result<()> {
+        test_logging::init_logging_once_for(vec![], LevelFilter::Debug, None);
+
+        let changelog = Changelog::parse_from_file(test_input_file, None)?;
+
+        changelog.save_to_file(test_output_file)?;
+        let mut file = File::open(test_output_file)?;
+        let mut content = String::new();
+        file.read_to_string(&mut content)?;
+
+        assert!(are_the_same(test_input_file, test_output_file)?);
 
         Ok(())
     }

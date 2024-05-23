@@ -21,3 +21,8 @@ chrono = "0.4"
 regex = "1"
 semver = "1"
 derive_setters = "0.1.6"
+log = "0.4.21"
+
+[dev-dependencies]
+log4rs_test_utils = "0.2.3"
+rstest = "0.19.0"
