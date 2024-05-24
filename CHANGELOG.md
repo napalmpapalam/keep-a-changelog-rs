@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Write compliant markdown as validated by Mardownlint ([issue #3](https://github.com/napalmpapalam/keep-a-changelog-rs/issues/3))
+- Write compliant markdown as validated by Markdownlint ([issue #3](https://github.com/napalmpapalam/keep-a-changelog-rs/issues/3))
 
 ## [0.1.2] - 2024-05-20
 
