@@ -409,9 +409,15 @@ mod test {
         Ok(true)
     }
 
-    #[test]
-    fn create_default_changelog() -> Result<()> {
+    #[rstest]
+    fn create_default_changelog(#[values(false, true)] compact: bool) -> Result<()> {
         test_logging::init_logging_once_for(vec![], LevelFilter::Debug, None);
+
+        let expected_file = if compact {
+            "tests/data/default_changelog_compact.md"
+        } else {
+            "tests/data/default_changelog.md"
+        };
 
         let file_name = "tests/tmp/test_default.md";
 
@@ -421,14 +427,22 @@ mod test {
 
         changelog.save_to_file(file_name)?;
 
-        assert!(are_the_same("tests/data/default_changelog.md", file_name)?);
+        assert!(are_the_same(expected_file, file_name)?);
 
         Ok(())
     }
 
-    #[test]
-    fn create_default_changelog_with_unreleased() -> Result<()> {
+    #[rstest]
+    fn create_default_changelog_with_unreleased(
+        #[values(false, true)] compact: bool,
+    ) -> Result<()> {
         test_logging::init_logging_once_for(vec![], LevelFilter::Debug, None);
+
+        let expected_file = if compact {
+            "tests/data/default_changelog_with_unreleased_compact.md"
+        } else {
+            "tests/data/default_changelog_with_unreleased.md"
+        };
 
         let file_name = "tests/tmp/test_default_with_unreleased.md";
 
@@ -441,17 +455,20 @@ mod test {
 
         changelog.save_to_file(file_name)?;
 
-        assert!(are_the_same(
-            "tests/data/default_changelog_with_unreleased.md",
-            file_name
-        )?);
+        assert!(are_the_same(expected_file, file_name)?);
 
         Ok(())
     }
 
-    #[test]
-    fn create_initial_changelog_unreleased() -> Result<()> {
+    #[rstest]
+    fn create_initial_changelog_unreleased(#[values(false, true)] compact: bool) -> Result<()> {
         test_logging::init_logging_once_for(vec![], LevelFilter::Debug, None);
+
+        let expected_file = if compact {
+            "tests/data/initial_changelog_unreleased_compact.md"
+        } else {
+            "tests/data/initial_changelog_unreleased.md"
+        };
 
         let file_name = "tests/tmp/test_initial_unreleased.md";
 
@@ -466,19 +483,22 @@ mod test {
 
         changelog.save_to_file(file_name)?;
 
-        assert!(are_the_same(
-            "tests/data/initial_changelog_unreleased.md",
-            file_name
-        )?);
+        assert!(are_the_same(expected_file, file_name)?);
 
         Ok(())
     }
 
-    #[test]
-    fn create_early_changelog() -> Result<()> {
+    #[rstest]
+    fn create_early_changelog(#[values(false, true)] compact: bool) -> Result<()> {
         test_logging::init_logging_once_for(vec![], LevelFilter::Debug, None);
 
         let file_name = "tests/tmp/test_early.md";
+
+        let expected_file = if compact {
+            "tests/data/early_changelog_compact.md"
+        } else {
+            "tests/data/early_changelog.md"
+        };
 
         let mut changelog = ChangelogBuilder::default()
             .url(Some(
@@ -535,7 +555,7 @@ mod test {
 
         changelog.save_to_file(file_name)?;
 
-        assert!(are_the_same("tests/data/early_changelog.md", file_name)?);
+        assert!(are_the_same(expected_file, file_name)?);
 
         Ok(())
     }
@@ -556,6 +576,22 @@ mod test {
     #[case(
         "tests/data/early_changelog.md",
         "tests/tmp/test_rewrite_early_changelog.md"
+    )]
+    #[case(
+        "tests/data/default_changelog_compact.md",
+        "tests/tmp/test_rewrite_default_changelog_compact.md"
+    )]
+    #[case(
+        "tests/data/default_changelog_with_unreleased_compact.md",
+        "tests/tmp/test_rewrite_default_changelog_with_unreleased_compact.md"
+    )]
+    #[case(
+        "tests/data/initial_changelog_unreleased_compact.md",
+        "tests/tmp/test_rewrite_initial_changelog_unreleased_compact.md"
+    )]
+    #[case(
+        "tests/data/early_changelog_compact.md",
+        "tests/tmp/test_rewrite_early_changelog_compact.md"
     )]
     fn test_save_to_file(
         #[case] test_input_file: &str,
