@@ -34,6 +34,9 @@ pub struct Release {
     #[setters(strip_option, into, borrow_self)]
     #[builder(default)]
     changes: Changes,
+    #[builder(private, default)]
+    #[setters(skip)]
+    compact: bool,
 }
 
 impl ReleaseBuilder {
@@ -130,6 +133,11 @@ impl Release {
         self.changes.add(ChangeKind::Security, change);
         self
     }
+
+    pub(crate) fn set_compact(&mut self, value: bool) -> &mut Self {
+        self.compact = value;
+        self
+    }
 }
 
 impl Ord for Release {
@@ -155,9 +163,13 @@ impl Display for Release {
                 .map_err(|_| std::fmt::Error)?
                 .format("%Y-%m-%d")
                 .to_string();
-            writeln!(f, "## [{version}] - {date}{yanked}\n")?;
+            writeln!(f, "## [{version}] - {date}{yanked}")?;
         } else {
-            writeln!(f, "## [Unreleased]\n")?;
+            writeln!(f, "## [Unreleased]")?;
+        }
+
+        if !self.compact {
+            writeln!(f)?;
         }
 
         if let Some(description) = &self.description {
@@ -165,7 +177,11 @@ impl Display for Release {
         }
 
         if !self.changes.is_empty() {
-            write!(f, "{}", self.changes)?;
+            let mut changes = self.changes.clone(); // clone the changes so that we mutate if required = release.clone(); // clone the release so that we mutate if required
+            changes.set_compact(self.compact);
+            write!(f, "{}", changes)?;
+        } else if self.compact {
+            writeln!(f)?;
         }
 
         Ok(())
