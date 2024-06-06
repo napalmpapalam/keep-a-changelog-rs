@@ -154,7 +154,7 @@ impl Parser {
 
     fn build(&self) -> Result<Changelog> {
         log::debug!("idx is {} and len is {}", self.idx, self.tokens.len());
-        if dbg!(self.idx != self.tokens.len()) {
+        if self.idx != self.tokens.len() {
             bail!(
                 "Unexpected tokens: {:?}, index: {}, tokens length: {}",
                 self.tokens[self.idx..].to_vec(),
