@@ -175,13 +175,11 @@ impl Changelog {
     /// line at the end of the string needs to be removed.
     ///
     fn file_contents(&self) -> String {
-        if !self.to_string().ends_with("\n\n") {
-            return self.to_string();
-        }
-
-        let mut s = self.to_string().trim_end_matches('\n').to_string();
-        s.push('\n');
-        s
+        let contents = self.to_string();
+        let mut contents = contents.replace("\n\n\n", "\n\n");
+        contents = contents.trim_end_matches('\n').to_string();
+        contents.push('\n');
+        contents
     }
 
     pub fn releases_mut(&mut self) -> &mut Vec<Release> {
@@ -660,6 +658,88 @@ mod test {
     }
 
     #[rstest]
+    fn create_early_changelog_with_multiple_sections(
+        #[values(false, true)] compact: bool,
+    ) -> Result<()> {
+        test_logging::init_logging_once_for(vec![], LevelFilter::Debug, None);
+
+        let mut expected_filename = "tests/data/early_changelog_multiple_sections.md";
+        let mut file_name = "tests/tmp/test_early_changelog_multiple_sections.md";
+
+        let mut changelog = ChangelogBuilder::default()
+            .flag("test flag".to_string())
+            .url(Some(
+                "https://github.com/napalmpapalam/keep-a-changelog-rs".to_string(),
+            ))
+            .build()?;
+
+        if compact {
+            log::debug!("Changelog: {:#?}\nSetting compact output", changelog);
+            expected_filename = "tests/data/early_changelog_multiple_sections_compact.md";
+            file_name = "tests/tmp/test_early_changelog_multiple_sections_compact.md";
+            changelog.set_compact();
+        }
+
+        // First Release
+
+        let mut release = Release::builder()
+            .version(Version::parse("0.1.0")?)
+            .date(NaiveDate::from_ymd_opt(2024, 4, 28).unwrap())
+            .build()?;
+
+        release.added("Initial release".to_string());
+
+        changelog.add_release(release);
+
+        // Second Release
+
+        let mut release = Release::builder()
+            .version(Version::parse("0.1.1")?)
+            .date(NaiveDate::from_ymd_opt(2024, 5, 18).unwrap())
+            .build()?;
+
+        release.fixed("Parsing anchor links in the middle of the file".to_string());
+        release.fixed("Error readability".to_string());
+
+        changelog.add_release(release);
+
+        // Third Release
+
+        let mut release = Release::builder()
+            .version(Version::parse("0.1.2")?)
+            .date(NaiveDate::from_ymd_opt(2024, 5, 20).unwrap())
+            .build()?;
+
+        release.fixed("Default changelog description".to_string());
+        release.fixed(
+            "Changelog builder error when title and description are not provided".to_string(),
+        );
+
+        changelog.add_release(release);
+
+        // Unreleased
+
+        let mut release = Release::builder().build()?;
+
+        release.added("New feature".to_string());
+        release.added("Another new feature".to_string());
+        release.fixed("Bug fix to one old feature".to_string());
+        release.fixed("Bug fix to another old feature".to_string());
+
+        changelog.add_release(release);
+
+        // Ready to save
+
+        log::debug!("Changelog: {:#?}", changelog);
+
+        changelog.save_to_file(file_name)?;
+
+        assert!(are_the_same(expected_filename, file_name)?);
+
+        Ok(())
+    }
+
+    #[rstest]
     #[case(
         "tests/data/default_changelog.md",
         "tests/tmp/test_rewrite_default_changelog.md"
@@ -677,6 +757,10 @@ mod test {
         "tests/tmp/test_rewrite_early_changelog.md"
     )]
     #[case(
+        "tests/data/early_changelog_multiple_sections.md",
+        "tests/tmp/test_rewrite_early_changelog.md"
+    )]
+    #[case(
         "tests/data/default_changelog_compact.md",
         "tests/tmp/test_rewrite_default_changelog_compact.md"
     )]
@@ -690,6 +774,10 @@ mod test {
     )]
     #[case(
         "tests/data/early_changelog_compact.md",
+        "tests/tmp/test_rewrite_early_changelog_compact.md"
+    )]
+    #[case(
+        "tests/data/early_changelog_multiple_sections_compact.md",
         "tests/tmp/test_rewrite_early_changelog_compact.md"
     )]
     fn test_save_to_file(
