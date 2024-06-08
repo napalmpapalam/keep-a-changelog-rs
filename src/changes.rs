@@ -47,6 +47,7 @@ pub struct Changes {
     removed: Vec<String>,
     fixed: Vec<String>,
     security: Vec<String>,
+    compact: bool,
 }
 
 impl Changes {
@@ -83,6 +84,11 @@ impl Changes {
             && self.fixed.is_empty()
             && self.security.is_empty()
     }
+
+    pub(crate) fn set_compact(&mut self, value: bool) -> &mut Self {
+        self.compact = value;
+        self
+    }
 }
 
 impl Display for Changes {
@@ -92,37 +98,61 @@ impl Display for Changes {
         if !self.added.is_empty() {
             ensure_newline(f, &mut first_printed)?;
             writeln!(f, "### Added")?;
+            if !self.compact {
+                writeln!(f)?;
+            }
             print_changes(f, &self.added)?;
+            writeln!(f)?;
         }
 
         if !self.changed.is_empty() {
             ensure_newline(f, &mut first_printed)?;
             writeln!(f, "### Changed")?;
+            if !self.compact {
+                writeln!(f)?;
+            }
             print_changes(f, &self.changed)?;
+            writeln!(f)?;
         }
 
         if !self.deprecated.is_empty() {
             ensure_newline(f, &mut first_printed)?;
             writeln!(f, "### Deprecated")?;
+            if !self.compact {
+                writeln!(f)?;
+            }
             print_changes(f, &self.deprecated)?;
+            writeln!(f)?;
         }
 
         if !self.removed.is_empty() {
             ensure_newline(f, &mut first_printed)?;
             writeln!(f, "### Removed")?;
+            if !self.compact {
+                writeln!(f)?;
+            }
             print_changes(f, &self.removed)?;
+            writeln!(f)?;
         }
 
         if !self.fixed.is_empty() {
             ensure_newline(f, &mut first_printed)?;
             writeln!(f, "### Fixed")?;
+            if !self.compact {
+                writeln!(f)?;
+            }
             print_changes(f, &self.fixed)?;
+            writeln!(f)?;
         }
 
         if !self.security.is_empty() {
             ensure_newline(f, &mut first_printed)?;
             writeln!(f, "### Security")?;
+            if !self.compact {
+                writeln!(f)?;
+            }
             print_changes(f, &self.security)?;
+            writeln!(f)?;
         }
 
         Ok(())

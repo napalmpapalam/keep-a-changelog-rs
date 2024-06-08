@@ -18,6 +18,7 @@ pub enum TokenKind {
     Link,
     Flag,
     Hr,
+    Lint,
 }
 
 impl Display for TokenKind {
@@ -31,6 +32,7 @@ impl Display for TokenKind {
             TokenKind::Link => "Link",
             TokenKind::Flag => "Flag",
             TokenKind::Hr => "Horizontal Rule",
+            TokenKind::Lint => "Lint",
         };
 
         write!(f, "{}", kind)
@@ -54,8 +56,19 @@ impl Token {
     }
 }
 
-pub fn tokenize(markdown: String) -> Result<Vec<Token>> {
+pub fn tokenize(markdown: String) -> Result<(bool, Vec<Token>)> {
     let tokens: Vec<Token> = extract_tokens(markdown);
+    log::debug!("Tokens: {:#?}", tokens);
+
+    let mut compact = false;
+
+    for (idx, token) in tokens.iter().enumerate() {
+        if token.kind == TokenKind::H1 && !tokens[idx + 1].content[0].is_empty() {
+            compact = true;
+            break;
+        }
+    }
+
     let regex = Regex::new(r"^\s\s")?;
     let mut result: Vec<Token> = vec![];
 
@@ -89,21 +102,24 @@ pub fn tokenize(markdown: String) -> Result<Vec<Token>> {
         result.push(Token::new(line, kind, vec![content]));
     }
 
-    Ok(result
-        .into_iter()
-        .filter(|t| !is_empty_str_vec(t.content.clone()))
-        .map(|mut token| {
-            while is_empty_str(token.content[token.content.len() - 1].clone()) {
-                token.content.pop();
-            }
+    Ok((
+        compact,
+        result
+            .into_iter()
+            .filter(|t| !is_empty_str_vec(t.content.clone()))
+            .map(|mut token| {
+                while is_empty_str(token.content[token.content.len() - 1].clone()) {
+                    token.content.pop();
+                }
 
-            while is_empty_str(token.content[0].clone()) {
-                token.content.remove(0);
-            }
+                while is_empty_str(token.content[0].clone()) {
+                    token.content.remove(0);
+                }
 
-            token
-        })
-        .collect())
+                token
+            })
+            .collect(),
+    ))
 }
 
 fn extract_tokens(markdown: String) -> Vec<Token> {
@@ -170,8 +186,13 @@ fn extract_tokens(markdown: String) -> Vec<Token> {
             }
 
             if let Some(captures) = comment_regex.captures(&line) {
+                log::debug!("Found comments: {:#?}", captures);
                 let line = captures[1].trim().to_string();
-                return Some(Token::new(ln, TokenKind::Flag, vec![line]));
+                if line.starts_with("markdownlint-disable") {
+                    return Some(Token::new(ln, TokenKind::Lint, vec![line]));
+                } else {
+                    return Some(Token::new(ln, TokenKind::Flag, vec![line]));
+                }
             }
 
             Some(Token::new(
