@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     fmt::{self, Display},
     fs::{File, OpenOptions},
     io::{Read, Write},
@@ -22,6 +23,8 @@ use crate::{
 #[derive(Debug, Clone, Builder, Getters)]
 #[builder(derive(Debug))]
 pub struct Changelog {
+    #[builder(setter(into), default)]
+    lint: Option<HashSet<String>>,
     #[builder(setter(into), default)]
     flag: Option<String>,
     /// Changelog title, default is "Changelog"
@@ -53,6 +56,12 @@ pub struct Changelog {
     /// used to add a prefix to the version number, for example, "v"
     #[builder(setter(into), default)]
     tag_prefix: Option<String>,
+    /// Allow compact output, default is false.
+    ///
+    /// Compact output removes blank lines after headers and lists and inserts a flag to disable
+    /// checking for these lines by markdownlint.
+    #[builder(setter(custom), default = "false")]
+    compact: bool,
 }
 
 impl ChangelogBuilder {
@@ -91,6 +100,19 @@ impl ChangelogBuilder {
             .wrap_err_with(|| "Failed to parse links")?;
         self.links = Some(links);
         Ok(self)
+    }
+
+    pub fn compact(&mut self, compact: bool) -> &mut Self {
+        self.compact = Some(compact);
+        if compact {
+            let mut set = HashSet::new();
+            set.insert("MD022".into());
+            set.insert("MD032".into());
+            self.lint(set);
+        } else {
+            self.lint = None;
+        }
+        self
     }
 }
 
@@ -147,19 +169,17 @@ impl Changelog {
         Ok(())
     }
 
-    /// Format the changelog as a string for output as a valid Marddown file
+    /// Format the changelog as a string for output as a valid Markdown file
     ///
     /// To ensure compliance with the requirements of the Markdown standard any blank
     /// line at the end of the string needs to be removed.
     ///
     fn file_contents(&self) -> String {
-        if self.to_string().ends_with("\n\n") {
-            let mut s = self.to_string().trim_end_matches('\n').to_string();
-            s.push('\n');
-            s
-        } else {
-            self.to_string()
-        }
+        let contents = self.to_string();
+        let mut contents = contents.replace("\n\n\n", "\n\n");
+        contents = contents.trim_end_matches('\n').to_string();
+        contents.push('\n');
+        contents
     }
 
     pub fn releases_mut(&mut self) -> &mut Vec<Release> {
@@ -314,16 +334,79 @@ impl Changelog {
         }
         version.to_string()
     }
+
+    /// Set compact option on.
+    pub fn set_compact(&mut self) -> &mut Self {
+        self.compact = true;
+        self.disable_lint("MD022");
+        self.disable_lint("MD032");
+
+        self
+    }
+
+    /// Set compact option off.
+    pub fn unset_compact(&mut self) -> &mut Self {
+        self.compact = false;
+        self.enable_lint("MD022");
+        self.enable_lint("MD032");
+        self
+    }
+
+    /// Add a lint to the list of markdown lints that will be ignored.
+    ///
+    pub fn disable_lint(&mut self, lint: &str) -> &mut Self {
+        let set = match self.lint.clone() {
+            Some(mut disabled) => {
+                disabled.insert(lint.to_string());
+                disabled
+            }
+            None => {
+                let mut set = HashSet::new();
+                set.insert(lint.to_string());
+                set
+            }
+        };
+
+        self.lint = Some(set);
+
+        self
+    }
+
+    /// Remove a lint from the list of markdown lints that will be ignored.
+    ///
+    pub fn enable_lint(&mut self, lint: &str) -> &mut Self {
+        if let Some(mut disabled) = self.lint.clone() {
+            disabled.remove(lint);
+
+            if disabled.is_empty() {
+                self.lint = None;
+            } else {
+                self.lint = Some(disabled);
+            }
+        };
+
+        self
+    }
 }
 
 impl Display for Changelog {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if let Some(md_lints) = self.lint.clone() {
+            let mut lints = md_lints.iter().cloned().collect::<Vec<_>>();
+            lints.sort();
+            let joined = lints.join(" ");
+            writeln!(f, "<!-- markdownlint-disable {joined} -->",)?;
+        }
+
         if let Some(flag) = self.flag.clone() {
-            writeln!(f, "<!-- ${flag} -->")?;
+            writeln!(f, "<!-- {flag} -->")?;
         }
 
         let title = self.title.clone().unwrap_or_else(|| CHANGELOG_TITLE.into());
-        writeln!(f, "# {title}\n",)?;
+        writeln!(f, "# {title}",)?;
+        if !self.compact {
+            writeln!(f)?;
+        }
 
         let description = match self.description.clone() {
             Some(description) => description.trim().to_owned(),
@@ -332,9 +415,11 @@ impl Display for Changelog {
 
         writeln!(f, "{description}\n")?;
 
-        self.releases()
-            .iter()
-            .try_for_each(|release| write!(f, "{release}"))?;
+        self.releases().iter().try_for_each(|release| {
+            let mut release = release.clone(); // clone the release so that we mutate if required
+            release.set_compact(self.compact);
+            write!(f, "{release}")
+        })?;
 
         let tag_regex = Regex::new(r"\d+\.\d+\.\d+((-rc|-x)\.\d+)?").unwrap();
 
@@ -409,30 +494,50 @@ mod test {
         Ok(true)
     }
 
-    #[test]
-    fn create_default_changelog() -> Result<()> {
+    #[rstest]
+    fn create_default_changelog(#[values(false, true)] compact: bool) -> Result<()> {
         test_logging::init_logging_once_for(vec![], LevelFilter::Debug, None);
 
-        let file_name = "tests/tmp/test_default.md";
+        let mut expected_file = "tests/data/default_changelog.md";
+        let mut file_name = "tests/tmp/test_default.md";
 
-        let changelog = ChangelogBuilder::default().build()?;
+        let mut changelog = ChangelogBuilder::default().build()?;
+
+        if compact {
+            log::debug!("Changelog: {:#?}", changelog);
+            expected_file = "tests/data/default_changelog_compact.md";
+            file_name = "tests/tmp/test_default_compact.md";
+            changelog.set_compact();
+        }
 
         log::debug!("Changelog: {:#?}", changelog);
 
         changelog.save_to_file(file_name)?;
 
-        assert!(are_the_same("tests/data/default_changelog.md", file_name)?);
+        assert!(are_the_same(expected_file, file_name)?);
 
         Ok(())
     }
 
-    #[test]
-    fn create_default_changelog_with_unreleased() -> Result<()> {
+    #[rstest]
+    fn create_default_changelog_with_unreleased(
+        #[values(false, true)] compact: bool,
+    ) -> Result<()> {
         test_logging::init_logging_once_for(vec![], LevelFilter::Debug, None);
 
-        let file_name = "tests/tmp/test_default_with_unreleased.md";
+        let mut expected_file = "tests/data/default_changelog_with_unreleased.md";
+        let mut file_name = "tests/tmp/test_default_with_unreleased.md";
 
-        let mut changelog = ChangelogBuilder::default().build()?;
+        let mut changelog = if compact {
+            expected_file = "tests/data/default_changelog_with_unreleased_compact.md";
+            file_name = "tests/tmp/test_default_with_unreleased_compact.md";
+            ChangelogBuilder::default().compact(true).build()?
+        } else {
+            ChangelogBuilder::default().build()?
+        };
+
+        log::debug!("Changelog: {:#?}", changelog);
+
         let release = Release::builder().build()?;
 
         changelog.add_release(release);
@@ -441,21 +546,27 @@ mod test {
 
         changelog.save_to_file(file_name)?;
 
-        assert!(are_the_same(
-            "tests/data/default_changelog_with_unreleased.md",
-            file_name
-        )?);
+        assert!(are_the_same(expected_file, file_name)?);
 
         Ok(())
     }
 
-    #[test]
-    fn create_initial_changelog_unreleased() -> Result<()> {
+    #[rstest]
+    fn create_initial_changelog_unreleased(#[values(false, true)] compact: bool) -> Result<()> {
         test_logging::init_logging_once_for(vec![], LevelFilter::Debug, None);
 
-        let file_name = "tests/tmp/test_initial_unreleased.md";
+        let mut expected_filename = "tests/data/initial_changelog_unreleased.md";
+        let mut file_name = "tests/tmp/test_initial_unreleased.md";
 
         let mut changelog = ChangelogBuilder::default().build()?;
+
+        if compact {
+            log::debug!("Changelog: {:#?}\nSetting compact output", changelog);
+            expected_filename = "tests/data/initial_changelog_unreleased_compact.md";
+            file_name = "tests/tmp/test_initial_unreleased_compact.md";
+            changelog.set_compact();
+        }
+
         let mut release = Release::builder().build()?;
 
         release.added("Initial commit".to_string());
@@ -466,25 +577,31 @@ mod test {
 
         changelog.save_to_file(file_name)?;
 
-        assert!(are_the_same(
-            "tests/data/initial_changelog_unreleased.md",
-            file_name
-        )?);
+        assert!(are_the_same(expected_filename, file_name)?);
 
         Ok(())
     }
 
-    #[test]
-    fn create_early_changelog() -> Result<()> {
+    #[rstest]
+    fn create_early_changelog(#[values(false, true)] compact: bool) -> Result<()> {
         test_logging::init_logging_once_for(vec![], LevelFilter::Debug, None);
 
-        let file_name = "tests/tmp/test_early.md";
+        let mut expected_filename = "tests/data/early_changelog.md";
+        let mut file_name = "tests/tmp/test_early.md";
 
         let mut changelog = ChangelogBuilder::default()
+            .flag("test flag".to_string())
             .url(Some(
                 "https://github.com/napalmpapalam/keep-a-changelog-rs".to_string(),
             ))
             .build()?;
+
+        if compact {
+            log::debug!("Changelog: {:#?}\nSetting compact output", changelog);
+            expected_filename = "tests/data/early_changelog_compact.md";
+            file_name = "tests/tmp/test_early_compact.md";
+            changelog.set_compact();
+        }
 
         // First Release
 
@@ -535,7 +652,89 @@ mod test {
 
         changelog.save_to_file(file_name)?;
 
-        assert!(are_the_same("tests/data/early_changelog.md", file_name)?);
+        assert!(are_the_same(expected_filename, file_name)?);
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn create_early_changelog_with_multiple_sections(
+        #[values(false, true)] compact: bool,
+    ) -> Result<()> {
+        test_logging::init_logging_once_for(vec![], LevelFilter::Debug, None);
+
+        let mut expected_filename = "tests/data/early_changelog_multiple_sections.md";
+        let mut file_name = "tests/tmp/test_early_changelog_multiple_sections.md";
+
+        let mut changelog = ChangelogBuilder::default()
+            .flag("test flag".to_string())
+            .url(Some(
+                "https://github.com/napalmpapalam/keep-a-changelog-rs".to_string(),
+            ))
+            .build()?;
+
+        if compact {
+            log::debug!("Changelog: {:#?}\nSetting compact output", changelog);
+            expected_filename = "tests/data/early_changelog_multiple_sections_compact.md";
+            file_name = "tests/tmp/test_early_changelog_multiple_sections_compact.md";
+            changelog.set_compact();
+        }
+
+        // First Release
+
+        let mut release = Release::builder()
+            .version(Version::parse("0.1.0")?)
+            .date(NaiveDate::from_ymd_opt(2024, 4, 28).unwrap())
+            .build()?;
+
+        release.added("Initial release".to_string());
+
+        changelog.add_release(release);
+
+        // Second Release
+
+        let mut release = Release::builder()
+            .version(Version::parse("0.1.1")?)
+            .date(NaiveDate::from_ymd_opt(2024, 5, 18).unwrap())
+            .build()?;
+
+        release.fixed("Parsing anchor links in the middle of the file".to_string());
+        release.fixed("Error readability".to_string());
+
+        changelog.add_release(release);
+
+        // Third Release
+
+        let mut release = Release::builder()
+            .version(Version::parse("0.1.2")?)
+            .date(NaiveDate::from_ymd_opt(2024, 5, 20).unwrap())
+            .build()?;
+
+        release.fixed("Default changelog description".to_string());
+        release.fixed(
+            "Changelog builder error when title and description are not provided".to_string(),
+        );
+
+        changelog.add_release(release);
+
+        // Unreleased
+
+        let mut release = Release::builder().build()?;
+
+        release.added("New feature".to_string());
+        release.added("Another new feature".to_string());
+        release.fixed("Bug fix to one old feature".to_string());
+        release.fixed("Bug fix to another old feature".to_string());
+
+        changelog.add_release(release);
+
+        // Ready to save
+
+        log::debug!("Changelog: {:#?}", changelog);
+
+        changelog.save_to_file(file_name)?;
+
+        assert!(are_the_same(expected_filename, file_name)?);
 
         Ok(())
     }
@@ -556,6 +755,30 @@ mod test {
     #[case(
         "tests/data/early_changelog.md",
         "tests/tmp/test_rewrite_early_changelog.md"
+    )]
+    #[case(
+        "tests/data/early_changelog_multiple_sections.md",
+        "tests/tmp/test_rewrite_early_changelog.md"
+    )]
+    #[case(
+        "tests/data/default_changelog_compact.md",
+        "tests/tmp/test_rewrite_default_changelog_compact.md"
+    )]
+    #[case(
+        "tests/data/default_changelog_with_unreleased_compact.md",
+        "tests/tmp/test_rewrite_default_changelog_with_unreleased_compact.md"
+    )]
+    #[case(
+        "tests/data/initial_changelog_unreleased_compact.md",
+        "tests/tmp/test_rewrite_initial_changelog_unreleased_compact.md"
+    )]
+    #[case(
+        "tests/data/early_changelog_compact.md",
+        "tests/tmp/test_rewrite_early_changelog_compact.md"
+    )]
+    #[case(
+        "tests/data/early_changelog_multiple_sections_compact.md",
+        "tests/tmp/test_rewrite_early_changelog_compact.md"
     )]
     fn test_save_to_file(
         #[case] test_input_file: &str,

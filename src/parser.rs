@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use eyre::{bail, eyre, Result};
 use regex::Regex;
 use semver::Version;
@@ -9,6 +11,7 @@ use crate::{
     Changelog, ChangelogParseOptions,
 };
 
+#[derive(Debug)]
 pub struct Parser {
     builder: ChangelogBuilder,
     tokens: Vec<Token>,
@@ -18,24 +21,27 @@ pub struct Parser {
 
 impl Parser {
     pub fn parse(markdown: String, opts: Option<ChangelogParseOptions>) -> Result<Changelog> {
-        let tokens = tokenize(markdown)?;
+        let (compact, tokens) = tokenize(markdown)?;
         let (links, tokens): (Vec<Token>, Vec<Token>) =
             tokens.into_iter().partition(|t| t.kind == TokenKind::Link);
         let builder = ChangelogBuilder::default();
         let opts = opts.unwrap_or_default();
 
-        Self {
+        let mut parse_output = Self {
             builder,
             tokens,
             opts,
             idx: 0,
-        }
-        .parse_opts()?
-        .parse_meta()?
-        .parse_releases()?
-        .parse_links(links)?
-        .parse_footer()?
-        .build()
+        };
+        parse_output
+            .parse_opts()?
+            .parse_meta()?
+            .parse_releases()?
+            .parse_links(links)?
+            .parse_footer()?
+            .parse_compact(compact);
+        log::debug!("Parse output: {:#?}", parse_output);
+        parse_output.build()
     }
 
     fn parse_opts(&mut self) -> Result<&mut Self> {
@@ -51,11 +57,13 @@ impl Parser {
     }
 
     fn parse_meta(&mut self) -> Result<&mut Self> {
+        let (lint, _) = self.get_lint_content()?;
         let (flag, _) = self.get_content(vec![TokenKind::Flag])?;
         let (title, _) = self.get_content(vec![TokenKind::H1])?;
         let description = self.get_text_content()?;
 
         self.builder
+            .lint(lint)
             .flag(flag)
             .title(title)
             .description(description);
@@ -140,7 +148,12 @@ impl Parser {
         Ok(self)
     }
 
+    fn parse_compact(&mut self, compact: bool) {
+        self.builder.compact(compact);
+    }
+
     fn build(&self) -> Result<Changelog> {
+        log::debug!("idx is {} and len is {}", self.idx, self.tokens.len());
         if self.idx != self.tokens.len() {
             bail!(
                 "Unexpected tokens: {:?}, index: {}, tokens length: {}",
@@ -195,5 +208,45 @@ impl Parser {
         }
 
         Ok(Some(lines.join("\n")))
+    }
+
+    fn get_lint_content(&mut self) -> Result<(Option<HashSet<String>>, Option<Token>)> {
+        let kinds: Vec<TokenKind> = vec![TokenKind::Lint];
+
+        let token = self.tokens.get(self.idx);
+
+        if token.is_none() {
+            return Ok((None, None));
+        }
+
+        let token = token.unwrap().clone();
+
+        if !kinds.iter().any(|k| *k == token.kind) {
+            return Ok((None, Some(token)));
+        }
+
+        self.idx += 1;
+
+        let re = Regex::new(r"markdownlint-disable(?P<lints>( MD\d{3})+)")?;
+
+        if let Some(captures) = re.captures(&token.content[0]) {
+            let lints = captures
+                .name("lints")
+                .unwrap()
+                .as_str()
+                .trim()
+                .split(' ')
+                .map(|s| s.to_string())
+                .collect::<Vec<_>>();
+
+            let mut set = HashSet::new();
+            for s in &lints {
+                set.insert(s.to_string());
+            }
+
+            Ok((Some(set), Some(token)))
+        } else {
+            Err(eyre!("Failed to get lint content"))
+        }
     }
 }

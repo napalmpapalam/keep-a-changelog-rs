@@ -1,6 +1,6 @@
 [package]
 name = "keep-a-changelog"
-version = "0.1.2"
+version = "0.1.3"
 authors = ["Semen Loktionov <loktionov.kh@gmail.com>"]
 license = "MIT"
 edition = "2021"
