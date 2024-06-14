@@ -797,4 +797,22 @@ mod test {
 
         Ok(())
     }
+
+    #[test]
+    fn test_git_cliff_read_and_write() -> Result<()> {
+        test_logging::init_logging_once_for(vec![], LevelFilter::Debug, None);
+
+        let changelog = Changelog::parse_from_file("tests/data/git_cliff_changelog.md", None)?;
+        changelog.save_to_file("tests/tmp/test_rewrite_git_cliff_changelog.md")?;
+        let mut file = File::open("tests/tmp/test_rewrite_git_cliff_changelog.md")?;
+        let mut content = String::new();
+        file.read_to_string(&mut content)?;
+
+        assert!(are_the_same(
+            "tests/data/git_cliff_changelog.md",
+            "tests/tmp/test_rewrite_git_cliff_changelog.md"
+        )?);
+
+        Ok(())
+    }
 }
