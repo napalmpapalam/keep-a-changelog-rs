@@ -58,7 +58,7 @@ impl Token {
 
 pub fn tokenize(markdown: String) -> Result<(bool, Vec<Token>)> {
     let tokens: Vec<Token> = extract_tokens(markdown);
-    log::debug!("Tokens: {:#?}", tokens);
+    log::trace!("Tokens: {:#?}", tokens);
 
     let mut compact = false;
 

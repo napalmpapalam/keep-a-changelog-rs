@@ -40,7 +40,7 @@ impl Parser {
             .parse_links(links)?
             .parse_footer()?
             .parse_compact(compact);
-        log::debug!("Parse output: {:#?}", parse_output);
+        log::trace!("Parse output: {:#?}", parse_output);
         parse_output.build()
     }
 
