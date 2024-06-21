@@ -390,6 +390,19 @@ impl Changelog {
 
     /// Add a link to the list of links
     ///
+    /// # Examples
+    /// ```
+    /// # fn main() {
+    /// let mut changelog = ChangelogBuilder::default().build().unwrap();
+    ///
+    /// changelog.add_link("[anchor]: https://example.com".to_string());
+    ///
+    /// // Assert that the link was added correctly
+    /// assert_eq!(changelog.links().len(), 1);
+    /// assert_eq!(changelog.links().first().unwrap().anchor(), "anchor");
+    /// assert_eq!(changelog.links().first().unwrap().url(),"https://example.com");
+    /// # }    
+    ///     
     pub fn add_link<T: Into<String>>(&mut self, link: T) -> &mut Self {
         let link = Link::parse(link.into());
 
