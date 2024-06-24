@@ -387,6 +387,30 @@ impl Changelog {
 
         self
     }
+
+    /// Add a link to the list of links
+    ///
+    /// # Examples
+    /// ```
+    /// # fn main() {
+    /// let mut changelog = ChangelogBuilder::default().build().unwrap();
+    ///
+    /// changelog.add_link("[anchor]: https://example.com".to_string());
+    ///
+    /// // Assert that the link was added correctly
+    /// assert_eq!(changelog.links().len(), 1);
+    /// assert_eq!(changelog.links().first().unwrap().anchor(), "anchor");
+    /// assert_eq!(changelog.links().first().unwrap().url(),"https://example.com");
+    /// # }    
+    ///     
+    pub fn add_link<S: Into<String>>(&mut self, anchor: S, url: S) -> &mut Self {
+        let link = Link::new(anchor, url);
+
+        if let Ok(link) = link {
+            self.links.push(link);
+        };
+        self
+    }
 }
 
 impl Display for Changelog {
@@ -467,6 +491,7 @@ mod test {
     use log::LevelFilter;
     use log4rs_test_utils::test_logging;
     use rstest::rstest;
+    use uuid::Uuid;
 
     use super::*;
 
@@ -740,61 +765,55 @@ mod test {
     }
 
     #[rstest]
-    #[case(
-        "tests/data/default_changelog.md",
-        "tests/tmp/test_rewrite_default_changelog.md"
-    )]
-    #[case(
-        "tests/data/default_changelog_with_unreleased.md",
-        "tests/tmp/test_rewrite_default_changelog_with_unreleased.md"
-    )]
-    #[case(
-        "tests/data/initial_changelog_unreleased.md",
-        "tests/tmp/test_rewrite_initial_changelog_unreleased.md"
-    )]
-    #[case(
-        "tests/data/early_changelog.md",
-        "tests/tmp/test_rewrite_early_changelog.md"
-    )]
-    #[case(
-        "tests/data/early_changelog_multiple_sections.md",
-        "tests/tmp/test_rewrite_early_changelog.md"
-    )]
-    #[case(
-        "tests/data/default_changelog_compact.md",
-        "tests/tmp/test_rewrite_default_changelog_compact.md"
-    )]
-    #[case(
-        "tests/data/default_changelog_with_unreleased_compact.md",
-        "tests/tmp/test_rewrite_default_changelog_with_unreleased_compact.md"
-    )]
-    #[case(
-        "tests/data/initial_changelog_unreleased_compact.md",
-        "tests/tmp/test_rewrite_initial_changelog_unreleased_compact.md"
-    )]
-    #[case(
-        "tests/data/early_changelog_compact.md",
-        "tests/tmp/test_rewrite_early_changelog_compact.md"
-    )]
-    #[case(
-        "tests/data/early_changelog_multiple_sections_compact.md",
-        "tests/tmp/test_rewrite_early_changelog_compact.md"
-    )]
-    fn test_save_to_file(
-        #[case] test_input_file: &str,
-        #[case] test_output_file: &str,
-    ) -> Result<()> {
+    #[case("tests/data/default_changelog.md")]
+    #[case("tests/data/default_changelog_with_unreleased.md")]
+    #[case("tests/data/initial_changelog_unreleased.md")]
+    #[case("tests/data/early_changelog.md")]
+    #[case("tests/data/early_changelog_multiple_sections.md")]
+    #[case("tests/data/default_changelog_compact.md")]
+    #[case("tests/data/default_changelog_with_unreleased_compact.md")]
+    #[case("tests/data/initial_changelog_unreleased_compact.md")]
+    #[case("tests/data/early_changelog_compact.md")]
+    #[case("tests/data/early_changelog_multiple_sections_compact.md")]
+    fn test_save_to_file(#[case] test_input_file: &str) -> Result<()> {
         test_logging::init_logging_once_for(vec![], LevelFilter::Debug, None);
+
+        let temp_dir_string = format!("tests/tmp/test-{}", Uuid::new_v4());
+        let temp_dir = Path::new(&temp_dir_string);
+
+        fs::create_dir_all(temp_dir).expect("failed to create temporary directory");
+
+        let test_output_file = format!("{}/CHANGELOG.md", temp_dir_string);
+
+        log::debug!("Temporary directory: {:?}", temp_dir);
 
         let changelog = Changelog::parse_from_file(test_input_file, None)?;
 
-        changelog.save_to_file(test_output_file)?;
-        let mut file = File::open(test_output_file)?;
+        changelog.save_to_file(&test_output_file)?;
+        let mut file = File::open(&test_output_file)?;
         let mut content = String::new();
         file.read_to_string(&mut content)?;
 
-        assert!(are_the_same(test_input_file, test_output_file)?);
+        assert!(are_the_same(test_input_file, &test_output_file)?);
 
         Ok(())
+    }
+
+    #[test]
+    fn test_add_link() {
+        // Create a new ChangelogBuilder instance
+        let builder = ChangelogBuilder::default();
+        let mut changelog = builder.build().unwrap();
+
+        // Add a link to the builder
+        changelog.add_link("[anchor]:", "https://example.com");
+
+        // Assert that the link was added correctly
+        assert_eq!(changelog.links().len(), 1);
+        assert_eq!(changelog.links().first().unwrap().anchor(), "anchor");
+        assert_eq!(
+            changelog.links().first().unwrap().url(),
+            "https://example.com"
+        );
     }
 }
