@@ -403,8 +403,8 @@ impl Changelog {
     /// assert_eq!(changelog.links().first().unwrap().url(),"https://example.com");
     /// # }    
     ///     
-    pub fn add_link<T: Into<String>>(&mut self, link: T) -> &mut Self {
-        let link = Link::parse(link.into());
+    pub fn add_link<S: Into<String>>(&mut self, anchor: S, url: S) -> &mut Self {
+        let link = Link::new(anchor, url);
 
         if let Ok(link) = link {
             self.links.push(link);
@@ -806,7 +806,7 @@ mod test {
         let mut changelog = builder.build().unwrap();
 
         // Add a link to the builder
-        changelog.add_link("[anchor]: https://example.com".to_string());
+        changelog.add_link("[anchor]:", "https://example.com");
 
         // Assert that the link was added correctly
         assert_eq!(changelog.links().len(), 1);
