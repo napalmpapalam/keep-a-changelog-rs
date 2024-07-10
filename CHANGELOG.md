@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4] - 2024-07-10
+### Added
+- Public `add_link` method to the `Changelog` to allow the user to add a link to content.
+
 ## [0.1.3] - 2024-06-08
 ### Added
 - Write compliant markdown as validated by Markdownlint ([issue #3](https://github.com/napalmpapalam/keep-a-changelog-rs/issues/3))
@@ -24,7 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0] - 2024-04-28
 - Initial release
 
-[Unreleased]: https://github.com/napalmpapalam/keep-a-changelog-rs/compare/0.1.3...HEAD
+[Unreleased]: https://github.com/napalmpapalam/keep-a-changelog-rs/compare/0.1.4...HEAD
+[0.1.4]: https://github.com/napalmpapalam/keep-a-changelog-rs/compare/0.1.3...0.1.4
 [0.1.3]: https://github.com/napalmpapalam/keep-a-changelog-rs/compare/0.1.2...0.1.3
 [0.1.2]: https://github.com/napalmpapalam/keep-a-changelog-rs/compare/0.1.1...0.1.2
 [0.1.1]: https://github.com/napalmpapalam/keep-a-changelog-rs/compare/0.1.0...0.1.1
